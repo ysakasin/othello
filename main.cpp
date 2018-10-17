@@ -385,8 +385,8 @@ std::pair<bitboard, bitboard> initial_board_4x8 = {(1UL << 12) | (1UL << 19),
 
 std::mutex mtx;
 
-void worker(bitboard dark, bitboard light) {
-  STATE state = negamax(dark, light);
+void worker(bitboard x, bitboard y) {
+  STATE state = rev_state(negamax(x, y));
 
   mtx.lock();
   if (global_state.load() < static_cast<int>(state)) {
@@ -395,6 +395,31 @@ void worker(bitboard dark, bitboard light) {
   mtx.unlock();
 
   total_cnt.fetch_add(cnt);
+}
+
+STATE solve(bitboard dark, bitboard light) {
+  global_state.store(static_cast<int>(STATE::LOSE));
+  bitboard space = makeCandidate(dark, light);
+
+  std::thread threads[3];
+
+  for (auto &t : threads) {
+    bitboard move = space & (~space + 1);
+    bitboard rev = getRevPat(dark, light, move);
+    t = std::thread(worker, light ^ rev, dark ^ (move | rev));
+    space ^= move;
+  }
+
+  if (space != 0) {
+    std::cerr << "err:" << std::endl;
+    exit(1);
+  }
+
+  for (auto &t : threads) {
+    t.join();
+  }
+
+  return static_cast<STATE>(global_state.load());
 }
 
 int main() {
@@ -417,28 +442,7 @@ int main() {
     print8x8(dark, light);
   }
 
-  global_state.store(static_cast<int>(STATE::LOSE));
-
-  uint64_t space = makeCandidate(light, dark);
-
-  std::thread threads[3];
-  for (auto &t : threads) {
-    bitboard move = space & (~space + 1);
-    bitboard rev = getRevPat(light, dark, move);
-    t = std::thread(worker, dark ^ rev, light ^ (move | rev));
-    space ^= move;
-  }
-
-  if (space != 0) {
-    std::cerr << "err:" << std::endl;
-    exit(1);
-  }
-
-  for (auto &t : threads) {
-    t.join();
-  }
-
-  std::cout << static_cast<STATE>(global_state.load()) << std::endl;
+  std::cout << rev_state(solve(light, dark)) << std::endl;
   std::cout << total_cnt << std::endl;
 
   return 0;

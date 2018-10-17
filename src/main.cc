@@ -266,10 +266,11 @@ static std::chrono::high_resolution_clock::time_point end_at;
 
 bitboard mask4x4 = 0x000000000f0f0f0f;
 bitboard mask4x6 = 0x000000003f3f3f3f;
+bitboard mask4x8 = 0x00000000ffffffff;
 bitboard mask6x6 = 0x00003f3f3f3f3f3f;
 
 STATE negamax(bitboard dark, bitboard light, bool pass = false) {
-  if (~(dark | light) == 0) {
+  if (~(dark | light | mask4x8) == 0) {
     // 終局
     cnt++;
     if (cnt % 10000000ULL == 0) {
@@ -279,7 +280,7 @@ STATE negamax(bitboard dark, bitboard light, bool pass = false) {
   }
 
   STATE max = STATE::LOSE;
-  bitboard space = makeCandidate(dark, light) & mask6x6;
+  bitboard space = makeCandidate(dark, light) & mask4x8;
   if (space == 0) {
     if (pass) {
       cnt_totyu++;
@@ -315,16 +316,17 @@ std::pair<bitboard, bitboard> initial_board_8x8 = {(1UL << 28) | (1UL << 35), (1
 std::pair<bitboard, bitboard> initial_board_6x6 = {(1UL << 19) | (1UL << 26), (1UL << 18) | (1UL << 27)};
 std::pair<bitboard, bitboard> initial_board_4x4 = {(1UL << 10) | (1UL << 17), (1UL << 9) | (1UL << 18)};
 std::pair<bitboard, bitboard> initial_board_4x6 = {(1UL << 11) | (1UL << 18), (1UL << 10) | (1UL << 19)};
+std::pair<bitboard, bitboard> initial_board_4x8 = {(1UL << 12) | (1UL << 19), (1UL << 11) | (1UL << 20)};
 
 int main() {
 
   // print8x8(initial_board_8x8.first, initial_board_8x8.second);
-  print6x6(initial_board_6x6.first, initial_board_6x6.second);
+  // print6x6(initial_board_6x6.first, initial_board_6x6.second);
   // print4x4(initial_board_4x4.first, initial_board_4x4.second);
   // print8x8(initial_board_4x6.first, initial_board_4x6.second);
 
-  bitboard dark = initial_board_6x6.first;
-  bitboard light = initial_board_6x6.second;
+  bitboard dark = initial_board_4x8.first;
+  bitboard light = initial_board_4x8.second;
 
   bitboard candidate = makeCandidate(dark, light);
   print8x8(candidate, 0);

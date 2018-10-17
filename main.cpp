@@ -2,8 +2,58 @@
 #include <cstdint>
 #include <iostream>
 #include <list>
+#include <map>
 #include <vector>
 using bitboard = uint64_t;
+
+int table[64];
+
+void init_table() {
+  uint64_t hash = 0x03F566ED27179461UL;
+  for (int i = 0; i < 64; i++) {
+    table[hash >> 58] = i;
+    hash <<= 1;
+  }
+
+  for (int i = 0; i < 64; i++) {
+    std::cout << i << " : " << table[i] << std::endl;
+  }
+}
+
+int GetNumberOfTrailingZeros(uint64_t x) {
+  if (x == 0)
+    return 64;
+
+  if (1UL << 63 & x) {
+    return 63;
+  }
+
+  int64_t z = x;
+
+  uint64_t y = (uint64_t)(z & -z);
+  int i = (int)((y * 0x03F566ED27179461UL) >> 58);
+  return table[i];
+}
+
+// int GetNumberOfTrailingZeros(uint64_t x) {
+//   int i = 0;
+//   while (x >>= 1) {
+//     i++;
+//   }
+//   return i;
+// }
+
+int move_order6x6[8][8] = {
+    {1, 4, 2, 2, 4, 1}, {4, 5, 3, 3, 5, 4}, {2, 3, 9, 9, 3, 2},
+    {2, 3, 9, 9, 3, 2}, {4, 5, 3, 3, 5, 4}, {1, 4, 2, 2, 4, 1},
+};
+
+int move_order4x8[8][8] = {
+    {1, 4, 2, 3, 3, 2, 4, 1},
+    {4, 5, 3, 9, 9, 3, 5, 4},
+    {4, 5, 3, 9, 9, 3, 5, 4},
+    {1, 4, 2, 3, 3, 2, 4, 1},
+};
 
 enum class STATE {
   LOSE = -1,
@@ -269,6 +319,8 @@ bitboard mask4x6 = 0x000000003f3f3f3f;
 bitboard mask4x8 = 0x00000000ffffffff;
 bitboard mask6x6 = 0x00003f3f3f3f3f3f;
 
+static std::vector<std::pair<int, int>> candidates;
+
 STATE negamax(bitboard dark, bitboard light, bool pass = false) {
   if (~(dark | light | mask4x8) == 0) {
     // 終局
@@ -294,8 +346,20 @@ STATE negamax(bitboard dark, bitboard light, bool pass = false) {
     return rev_state(negamax(light, dark, true));
   }
 
+  candidates.clear();
+
   while (space != 0) {
     bitboard move = space & (~space + 1);
+    int pos = GetNumberOfTrailingZeros(move);
+    int priolity = move_order4x8[pos / 8][pos % 8];
+    candidates.emplace_back(priolity, move);
+    space ^= move;
+  }
+
+  std::sort(candidates.begin(), candidates.end());
+
+  for (const auto &pair : candidates) {
+    bitboard move = pair.second;
     bitboard rev = getRevPat(dark, light, move);
 
     STATE score = rev_state(negamax(light ^ rev, dark ^ (move | rev)));
@@ -304,8 +368,6 @@ STATE negamax(bitboard dark, bitboard light, bool pass = false) {
     } else if (score == STATE::DRAW) {
       max = STATE::DRAW;
     }
-
-    space ^= move;
   }
   return max;
 }
@@ -324,6 +386,8 @@ std::pair<bitboard, bitboard> initial_board_4x8 = {(1UL << 12) | (1UL << 19),
                                                    (1UL << 11) | (1UL << 20)};
 
 int main() {
+  candidates.reserve(64);
+  init_table();
   // print8x8(initial_board_8x8.first, initial_board_8x8.second);
   // print6x6(initial_board_6x6.first, initial_board_6x6.second);
   // print4x4(initial_board_4x4.first, initial_board_4x4.second);

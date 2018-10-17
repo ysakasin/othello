@@ -33,3 +33,4 @@
 
 # User settings
 *.dSYM
+.vscode/

@@ -312,14 +312,18 @@ STATE negamax(bitboard dark, bitboard light, bool pass = false) {
 
 static std::list<Board> board_queue;
 
-std::pair<bitboard, bitboard> initial_board_8x8 = {(1UL << 28) | (1UL << 35), (1UL << 27) | (1UL << 36)};
-std::pair<bitboard, bitboard> initial_board_6x6 = {(1UL << 19) | (1UL << 26), (1UL << 18) | (1UL << 27)};
-std::pair<bitboard, bitboard> initial_board_4x4 = {(1UL << 10) | (1UL << 17), (1UL << 9) | (1UL << 18)};
-std::pair<bitboard, bitboard> initial_board_4x6 = {(1UL << 11) | (1UL << 18), (1UL << 10) | (1UL << 19)};
-std::pair<bitboard, bitboard> initial_board_4x8 = {(1UL << 12) | (1UL << 19), (1UL << 11) | (1UL << 20)};
+std::pair<bitboard, bitboard> initial_board_8x8 = {(1UL << 28) | (1UL << 35),
+                                                   (1UL << 27) | (1UL << 36)};
+std::pair<bitboard, bitboard> initial_board_6x6 = {(1UL << 19) | (1UL << 26),
+                                                   (1UL << 18) | (1UL << 27)};
+std::pair<bitboard, bitboard> initial_board_4x4 = {(1UL << 10) | (1UL << 17),
+                                                   (1UL << 9) | (1UL << 18)};
+std::pair<bitboard, bitboard> initial_board_4x6 = {(1UL << 11) | (1UL << 18),
+                                                   (1UL << 10) | (1UL << 19)};
+std::pair<bitboard, bitboard> initial_board_4x8 = {(1UL << 12) | (1UL << 19),
+                                                   (1UL << 11) | (1UL << 20)};
 
 int main() {
-
   // print8x8(initial_board_8x8.first, initial_board_8x8.second);
   // print6x6(initial_board_6x6.first, initial_board_6x6.second);
   // print4x4(initial_board_4x4.first, initial_board_4x4.second);

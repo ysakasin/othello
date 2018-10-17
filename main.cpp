@@ -14,34 +14,30 @@ void init_table() {
     table[hash >> 58] = i;
     hash <<= 1;
   }
-
-  for (int i = 0; i < 64; i++) {
-    std::cout << i << " : " << table[i] << std::endl;
-  }
-}
-
-int GetNumberOfTrailingZeros(uint64_t x) {
-  if (x == 0)
-    return 64;
-
-  if (1UL << 63 & x) {
-    return 63;
-  }
-
-  int64_t z = x;
-
-  uint64_t y = (uint64_t)(z & -z);
-  int i = (int)((y * 0x03F566ED27179461UL) >> 58);
-  return table[i];
 }
 
 // int GetNumberOfTrailingZeros(uint64_t x) {
-//   int i = 0;
-//   while (x >>= 1) {
-//     i++;
+//   if (x == 0)
+//     return 64;
+
+//   if (1UL << 63 & x) {
+//     return 63;
 //   }
-//   return i;
+
+//   int64_t z = x;
+
+//   uint64_t y = (uint64_t)(z & -z);
+//   int i = (int)((y * 0x03F566ED27179461UL) >> 58);
+//   return table[i];
 // }
+
+int GetNumberOfTrailingZeros(uint64_t x) {
+  int i = 0;
+  while (x >>= 1) {
+    i++;
+  }
+  return i;
+}
 
 int move_order6x6[8][8] = {
     {1, 4, 2, 2, 4, 1}, {4, 5, 3, 3, 5, 4}, {2, 3, 9, 9, 3, 2},
@@ -322,7 +318,7 @@ bitboard mask6x6 = 0x00003f3f3f3f3f3f;
 static std::vector<std::pair<int, int>> candidates;
 
 STATE negamax(bitboard dark, bitboard light, bool pass = false) {
-  if (~(dark | light | mask4x8) == 0) {
+  if ((dark | light) == mask4x8) {
     // 終局
     cnt++;
     if (cnt % 10000000ULL == 0) {
@@ -352,14 +348,14 @@ STATE negamax(bitboard dark, bitboard light, bool pass = false) {
     bitboard move = space & (~space + 1);
     int pos = GetNumberOfTrailingZeros(move);
     int priolity = move_order4x8[pos / 8][pos % 8];
-    candidates.emplace_back(priolity, move);
+    candidates.emplace_back(priolity, pos);
     space ^= move;
   }
 
   std::sort(candidates.begin(), candidates.end());
 
-  for (const auto &pair : candidates) {
-    bitboard move = pair.second;
+  for (const auto pair : candidates) {
+    bitboard move = 1UL << pair.second;
     bitboard rev = getRevPat(dark, light, move);
 
     STATE score = rev_state(negamax(light ^ rev, dark ^ (move | rev)));
@@ -398,7 +394,6 @@ int main() {
 
   bitboard candidate = makeCandidate(dark, light);
   print8x8(candidate, 0);
-  print8x8(mask4x6, 0);
 
   // initial board
   // uint64_t dark = (1UL << 28) | (1UL << 35);

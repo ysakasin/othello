@@ -16,27 +16,19 @@ void init_table() {
   }
 }
 
-// int GetNumberOfTrailingZeros(uint64_t x) {
-//   if (x == 0)
-//     return 64;
-
-//   if (1UL << 63 & x) {
-//     return 63;
-//   }
-
-//   int64_t z = x;
-
-//   uint64_t y = (uint64_t)(z & -z);
-//   int i = (int)((y * 0x03F566ED27179461UL) >> 58);
-//   return table[i];
-// }
-
 int GetNumberOfTrailingZeros(uint64_t x) {
-  int i = 0;
-  while (x >>= 1) {
-    i++;
+  if (x == 0)
+    return 64;
+
+  if (1UL << 63 & x) {
+    return 63;
   }
-  return i;
+
+  int64_t z = x;
+
+  uint64_t y = (uint64_t)(z & -z);
+  int i = (int)((y * 0x03F566ED27179461UL) >> 58);
+  return table[i];
 }
 
 int move_order6x6[8][8] = {
@@ -315,8 +307,6 @@ bitboard mask4x6 = 0x000000003f3f3f3f;
 bitboard mask4x8 = 0x00000000ffffffff;
 bitboard mask6x6 = 0x00003f3f3f3f3f3f;
 
-static std::vector<std::pair<int, int>> candidates;
-
 STATE negamax(bitboard dark, bitboard light, bool pass = false) {
   if ((dark | light) == mask4x8) {
     // 終局
@@ -342,17 +332,19 @@ STATE negamax(bitboard dark, bitboard light, bool pass = false) {
     return rev_state(negamax(light, dark, true));
   }
 
-  candidates.clear();
+  int n = popcnt(space);
+  std::pair<char, char> candidates[n];
 
+  int index = 0;
   while (space != 0) {
     bitboard move = space & (~space + 1);
     int pos = GetNumberOfTrailingZeros(move);
     int priolity = move_order4x8[pos / 8][pos % 8];
-    candidates.emplace_back(priolity, pos);
+    candidates[index++] = {priolity, pos};
     space ^= move;
   }
 
-  std::sort(candidates.begin(), candidates.end());
+  std::sort(candidates, candidates + n);
 
   for (const auto pair : candidates) {
     bitboard move = 1UL << pair.second;
@@ -382,7 +374,6 @@ std::pair<bitboard, bitboard> initial_board_4x8 = {(1UL << 12) | (1UL << 19),
                                                    (1UL << 11) | (1UL << 20)};
 
 int main() {
-  candidates.reserve(64);
   init_table();
   // print8x8(initial_board_8x8.first, initial_board_8x8.second);
   // print6x6(initial_board_6x6.first, initial_board_6x6.second);

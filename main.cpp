@@ -39,12 +39,12 @@ int GetNumberOfTrailingZeros(uint64_t x) {
   return table[i];
 }
 
-int move_order6x6[8][8] = {
+const int move_order6x6[8][8] = {
     {1, 4, 2, 2, 4, 1}, {4, 5, 3, 3, 5, 4}, {2, 3, 9, 9, 3, 2},
     {2, 3, 9, 9, 3, 2}, {4, 5, 3, 3, 5, 4}, {1, 4, 2, 2, 4, 1},
 };
 
-int move_order4x8[8][8] = {
+const int move_order4x8[8][8] = {
     {1, 4, 2, 3, 3, 2, 4, 1},
     {4, 5, 3, 9, 9, 3, 5, 4},
     {4, 5, 3, 9, 9, 3, 5, 4},
@@ -310,13 +310,14 @@ bitboard getRevPat(const bitboard &black, const bitboard &white,
 static std::chrono::high_resolution_clock::time_point begin_at;
 static std::chrono::high_resolution_clock::time_point end_at;
 
-bitboard mask4x4 = 0x000000000f0f0f0f;
-bitboard mask4x6 = 0x000000003f3f3f3f;
-bitboard mask4x8 = 0x00000000ffffffff;
-bitboard mask6x6 = 0x00003f3f3f3f3f3f;
+static constexpr bitboard mask4x4 = 0x000000000f0f0f0f;
+static constexpr bitboard mask4x6 = 0x000000003f3f3f3f;
+static constexpr bitboard mask4x8 = 0x00000000ffffffff;
+static constexpr bitboard mask6x6 = 0x00003f3f3f3f3f3f;
 
+template <bitboard mask, const int move_order[8][8]>
 STATE negamax(bitboard dark, bitboard light, bool pass = false) {
-  if ((dark | light) == mask4x8) {
+  if ((dark | light) == mask) {
     // 終局
     cnt++;
     if (cnt % 10000000ULL == 0) {
@@ -326,7 +327,7 @@ STATE negamax(bitboard dark, bitboard light, bool pass = false) {
   }
 
   STATE max = STATE::LOSE;
-  bitboard space = makeCandidate(dark, light) & mask4x8;
+  bitboard space = makeCandidate(dark, light) & mask;
   if (space == 0) {
     if (pass) {
       // cnt_totyu++;
@@ -337,7 +338,7 @@ STATE negamax(bitboard dark, bitboard light, bool pass = false) {
       return juge(dark, light);
     }
 
-    return rev_state(negamax(light, dark, true));
+    return rev_state(negamax<mask, move_order>(light, dark, true));
   }
 
   int n = popcnt(space);
@@ -347,7 +348,7 @@ STATE negamax(bitboard dark, bitboard light, bool pass = false) {
   while (space != 0) {
     bitboard move = space & (~space + 1);
     int pos = GetNumberOfTrailingZeros(move);
-    int priolity = move_order4x8[pos / 8][pos % 8];
+    int priolity = move_order[pos / 8][pos % 8];
     candidates[index++] = {priolity, pos};
     space ^= move;
   }
@@ -362,7 +363,8 @@ STATE negamax(bitboard dark, bitboard light, bool pass = false) {
     bitboard move = 1UL << pair.second;
     bitboard rev = getRevPat(dark, light, move);
 
-    STATE score = rev_state(negamax(light ^ rev, dark ^ (move | rev)));
+    STATE score =
+        rev_state(negamax<mask, move_order>(light ^ rev, dark ^ (move | rev)));
     if (score == STATE::WIN) {
       return STATE::WIN;
     } else if (score == STATE::DRAW) {
@@ -385,8 +387,9 @@ std::pair<bitboard, bitboard> initial_board_4x8 = {(1UL << 12) | (1UL << 19),
 
 std::mutex mtx;
 
+template <bitboard mask, const int move_order[8][8]>
 void worker(bitboard x, bitboard y) {
-  STATE state = rev_state(negamax(x, y));
+  STATE state = rev_state(negamax<mask, move_order>(x, y));
 
   mtx.lock();
   if (global_state.load() < static_cast<int>(state)) {
@@ -397,6 +400,7 @@ void worker(bitboard x, bitboard y) {
   total_cnt.fetch_add(cnt);
 }
 
+template <bitboard mask, const int move_order[8][8]>
 STATE solve(bitboard dark, bitboard light) {
   global_state.store(static_cast<int>(STATE::LOSE));
   bitboard space = makeCandidate(dark, light);
@@ -406,7 +410,7 @@ STATE solve(bitboard dark, bitboard light) {
   for (auto &t : threads) {
     bitboard move = space & (~space + 1);
     bitboard rev = getRevPat(dark, light, move);
-    t = std::thread(worker, light ^ rev, dark ^ (move | rev));
+    t = std::thread(worker<mask, move_order>, light ^ rev, dark ^ (move | rev));
     space ^= move;
   }
 
@@ -422,11 +426,13 @@ STATE solve(bitboard dark, bitboard light) {
   return static_cast<STATE>(global_state.load());
 }
 
-int main() {
+template <const std::pair<bitboard, bitboard> &initial_board, bitboard mask,
+          const int move_order[8][8]>
+int exec() {
   init_table();
 
-  bitboard dark = initial_board_4x8.first;
-  bitboard light = initial_board_4x8.second;
+  bitboard dark = initial_board.first;
+  bitboard light = initial_board.second;
 
   bitboard candidate = makeCandidate(dark, light);
   print8x8(candidate, 0);
@@ -442,8 +448,13 @@ int main() {
     print8x8(dark, light);
   }
 
-  std::cout << rev_state(solve(light, dark)) << std::endl;
+  std::cout << rev_state(solve<mask, move_order>(light, dark)) << std::endl;
   std::cout << total_cnt << std::endl;
 
+  return 0;
+}
+
+int main() {
+  exec<initial_board_4x8, mask4x8, move_order4x8>();
   return 0;
 }

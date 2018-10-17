@@ -1,10 +1,18 @@
+#include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <iostream>
 #include <list>
 #include <map>
+#include <thread>
 #include <vector>
 using bitboard = uint64_t;
+
+std::atomic<int> global_state;
+std::atomic<long long> total_cnt;
+
+thread_local long long cnt;
 
 int table[64];
 
@@ -43,7 +51,7 @@ int move_order4x8[8][8] = {
     {1, 4, 2, 3, 3, 2, 4, 1},
 };
 
-enum class STATE {
+enum class STATE : int {
   LOSE = -1,
   DRAW = 0,
   WIN = 1,
@@ -296,8 +304,8 @@ bitboard getRevPat(const bitboard &black, const bitboard &white,
   return rev;
 }
 
-static uint64_t cnt = 0;
-static uint64_t cnt_totyu = 0;
+// static std::atomic<uint64_t> cnt{0};
+// static std::atomic<uint64_t> cnt_totyu{0};
 
 static std::chrono::high_resolution_clock::time_point begin_at;
 static std::chrono::high_resolution_clock::time_point end_at;
@@ -321,7 +329,7 @@ STATE negamax(bitboard dark, bitboard light, bool pass = false) {
   bitboard space = makeCandidate(dark, light) & mask4x8;
   if (space == 0) {
     if (pass) {
-      cnt_totyu++;
+      // cnt_totyu++;
       cnt++;
       if (cnt % 10000000ULL == 0) {
         std::cout << cnt << std::endl;
@@ -347,6 +355,10 @@ STATE negamax(bitboard dark, bitboard light, bool pass = false) {
   std::sort(candidates, candidates + n);
 
   for (const auto pair : candidates) {
+    if (global_state.load() == static_cast<int>(STATE::WIN)) {
+      break;
+    }
+
     bitboard move = 1UL << pair.second;
     bitboard rev = getRevPat(dark, light, move);
 
@@ -360,8 +372,6 @@ STATE negamax(bitboard dark, bitboard light, bool pass = false) {
   return max;
 }
 
-static std::list<Board> board_queue;
-
 std::pair<bitboard, bitboard> initial_board_8x8 = {(1UL << 28) | (1UL << 35),
                                                    (1UL << 27) | (1UL << 36)};
 std::pair<bitboard, bitboard> initial_board_6x6 = {(1UL << 19) | (1UL << 26),
@@ -373,22 +383,28 @@ std::pair<bitboard, bitboard> initial_board_4x6 = {(1UL << 11) | (1UL << 18),
 std::pair<bitboard, bitboard> initial_board_4x8 = {(1UL << 12) | (1UL << 19),
                                                    (1UL << 11) | (1UL << 20)};
 
+std::mutex mtx;
+
+void worker(bitboard dark, bitboard light) {
+  STATE state = negamax(dark, light);
+
+  mtx.lock();
+  if (global_state.load() < static_cast<int>(state)) {
+    global_state.store(static_cast<int>(state));
+  }
+  mtx.unlock();
+
+  total_cnt.fetch_add(cnt);
+}
+
 int main() {
   init_table();
-  // print8x8(initial_board_8x8.first, initial_board_8x8.second);
-  // print6x6(initial_board_6x6.first, initial_board_6x6.second);
-  // print4x4(initial_board_4x4.first, initial_board_4x4.second);
-  // print8x8(initial_board_4x6.first, initial_board_4x6.second);
 
   bitboard dark = initial_board_4x8.first;
   bitboard light = initial_board_4x8.second;
 
   bitboard candidate = makeCandidate(dark, light);
   print8x8(candidate, 0);
-
-  // initial board
-  // uint64_t dark = (1UL << 28) | (1UL << 35);
-  // uint64_t light = (1UL << 27) | (1UL << 36);
 
   { // first step
     uint64_t space = makeCandidate(dark, light);
@@ -401,8 +417,29 @@ int main() {
     print8x8(dark, light);
   }
 
-  std::cout << rev_state(negamax(light, dark)) << std::endl;
-  std::cout << cnt << std::endl;
+  global_state.store(static_cast<int>(STATE::LOSE));
+
+  uint64_t space = makeCandidate(light, dark);
+
+  std::thread threads[3];
+  for (auto &t : threads) {
+    bitboard move = space & (~space + 1);
+    bitboard rev = getRevPat(light, dark, move);
+    t = std::thread(worker, dark ^ rev, light ^ (move | rev));
+    space ^= move;
+  }
+
+  if (space != 0) {
+    std::cerr << "err:" << std::endl;
+    exit(1);
+  }
+
+  for (auto &t : threads) {
+    t.join();
+  }
+
+  std::cout << static_cast<STATE>(global_state.load()) << std::endl;
+  std::cout << total_cnt << std::endl;
 
   return 0;
 }
